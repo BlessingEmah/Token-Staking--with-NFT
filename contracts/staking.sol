@@ -1,50 +1,63 @@
-//SPDX-License-Identifier:MIT
+//SPDX-License-Identifier: Unlicense
+pragma solidity ^0.8.0;
 
-pragma solidity ^0.8.4;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "BAT.sol";
 
-import "./BAT.sol";
+contract stakeboredToken{
 
-contract StakingContract {
-
-    IERC721 public BoredApesNFT;
-
-    struct Stake {
-    uint256 amount;
-    uint256 timestamp;
-    bool hasBAT;
-
+    struct staker{
+        uint stakeAmount;
+        uint balance;
+        uint reward;
+        address skater;
+        uint stakeTime;
     }
 
-    //map staker address to stake details
-    mapping(address => uint256) public stakingTime;
+    mapping(address => staker) stakers;
 
-    //map staker address to stake details
-    mapping(address => Stake) public stakes;
-    
-    mapping(address => bool) public ownsBAT;
+    IERC721 boredApe = IERC721(0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D);
+    IERC20 boredToken = IERC20(0x4bf010f1b9beDA5450a8dD702ED602A104ff65EE);
 
-    constructor() {
- BoredApesNFT = IERC721(0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d);
- 
- }
-  
-  function stake( uint256 _amount) public {
-      stakes[msg.sender] = Stake(_amount, block.timestamp);
-      BoredApesNFT.safeTransferFrom(msg.sender, address(this), _amount, "0x00from");
-  }
+    function receiveToken() public{
+        require(boredApe.balanceOf(msg.sender) > 0, "You need to own a bored ape");
+        boredToken.transfer(msg.sender, 100);
+    }
 
+    function stake(uint amount) public {
+        staker storage staking = stakers[msg.sender];
+        staking.stakeAmount = amount;
+        staking.skater = msg.sender;
+        staking.stakeTime = block.timestamp;
+        boredToken.transferFrom(msg.sender,address(this),amount);
+        // IERC20(boredToken).approve(address(this),amount);
+    }
+
+    function withdraw(uint withdrawAmount) public {
+       staker storage s =  stakers[msg.sender];
+       uint daysPassed = (block.timestamp - s.stakeTime)/ (60);
+       uint reward = s.stakeAmount * 10/ 100 * daysPassed;
+       if(s.stakeTime > 1 minutes){
+           s.reward += reward/30;
+       }
+       else{
+           s.reward = 0;
+       }
+       s.balance = s.reward + s.stakeAmount;
+       require(withdrawAmount <= s.balance, "you can only withdraw within your reward");
+       boredToken.transfer(msg.sender, withdrawAmount);
+       s.balance -=withdrawAmount;
+        // stake(s.balance);
+    }
+
+    function autoCompound(uint coumpound) public{
+        staker storage s =  stakers[msg.sender];
+        require(s.balance != 0, "Please stake first");
+        uint autoCompoundAmount = s.balance += coumpound;
+        stake(autoCompoundAmount);
+    }
+
+    function viewStake() public view returns(staker memory){
+        return stakers[msg.sender];
+    }
 }
-
-//built my erc20 token,
-//give to anyone who calls it
-
-//Staking contract
-//accepts an erc20 token
-//link my token to my staking contract
-//people should have boredape NFT before they can stake my token - require and balance of
-//when they stake, they earn 10% per month provided they staked for 3 days or more
-
-
